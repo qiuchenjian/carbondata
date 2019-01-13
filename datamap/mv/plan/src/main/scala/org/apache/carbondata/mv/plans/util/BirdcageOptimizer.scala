@@ -132,7 +132,9 @@ object BirdcageOptimizer extends RuleExecutor[LogicalPlan] {
     Batch(
       "RewriteSubquery", Once,
       RewritePredicateSubquery,
-      CollapseProject) :: Nil
+      CollapseProject) ::
+    Batch(
+      "MVProjectAdd", Once, MVProjectColumnsAdd)::Nil
   }
 
   /**
