@@ -23,6 +23,7 @@ import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.optimizer._
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, _}
 import org.apache.spark.sql.catalyst.rules.{RuleExecutor, _}
+import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.util.SparkSQLUtil
 
@@ -149,7 +150,24 @@ object BirdcageOptimizer extends RuleExecutor[LogicalPlan] {
       }
     }
   }
+  // This class add the columns when LogicalRelation is child of Aggregate
+  // this is ony for mv
+  object MVProjectColumnsAdd extends Rule[LogicalPlan] {
+    override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
+      case a @ Aggregate(_, _, child) if (child.isInstanceOf[LogicalRelation] &&
+        (child.outputSet -- a.references).isEmpty) =>
+        a.copy(child = prunedChild(child, a.references))
+    }
 
+
+    /** Applies a projection only when the child is LogicalRelation */
+    private def prunedChild(c: LogicalPlan, allReferences: AttributeSet) =
+      if ((c.outputSet -- allReferences.filter(c.outputSet.contains)).isEmpty) {
+        Project(c.output.filter(allReferences.contains), c)
+      } else {
+        c
+      }
+  }
   /**
    * Override to provide additional rules for the operator optimization batch.
    */
